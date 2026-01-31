@@ -1,4 +1,4 @@
-import { startTracking, stopTracking, getElapsed } from "./tracker.js";
+import { startTracking, stopTracking, getElapsed, isActive } from "./tracker.js";
 
 const urlInput = document.getElementById("urlInput");
 const goBtn = document.getElementById("goBtn");
@@ -7,18 +7,30 @@ const timeEl = document.getElementById("time");
 const pauseBtn = document.getElementById("pauseBtn");
 
 let paused = false;
+let absent = false;
 
+/* -------------------------
+   Navegar para uma URL
+-------------------------- */
 goBtn.onclick = () => {
-  let url = urlInput.value;
+  let url = urlInput.value.trim();
+
+  if (!url) return;
+
   if (!url.startsWith("http")) {
     url = "https://" + url;
   }
+
   iframe.src = url;
   startTracking();
 };
 
+/* -------------------------
+   Pausa intencional
+-------------------------- */
 pauseBtn.onclick = () => {
   paused = !paused;
+
   if (paused) {
     stopTracking();
     iframe.style.display = "none";
@@ -30,6 +42,9 @@ pauseBtn.onclick = () => {
   }
 };
 
+/* -------------------------
+   Atualização do tempo
+-------------------------- */
 setInterval(() => {
   timeEl.textContent = formatTime(getElapsed());
 }, 1000);
@@ -40,60 +55,39 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-import { startTracking, stopTracking, isActive } from "./tracker.js";
-
-let absent = false;
-
-// Janela perde foco
+/* -------------------------
+   Perda de foco da janela
+-------------------------- */
 window.addEventListener("blur", () => {
-  if (isActive()) {
+  if (!paused && isActive()) {
     stopTracking();
     absent = true;
   }
 });
 
-// Janela volta ao foco
+/* -------------------------
+   Retorno de foco
+-------------------------- */
 window.addEventListener("focus", () => {
-  if (absent) {
+  if (!paused && absent) {
     startTracking();
     absent = false;
   }
 });
 
+/* -------------------------
+   Visibilidade da aba
+-------------------------- */
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
-    if (isActive()) {
+    if (!paused && isActive()) {
       stopTracking();
       absent = true;
     }
   } else {
-    if (absent) {
+    if (!paused && absent) {
       startTracking();
       absent = false;
     }
   }
 });
-
-let paused = false;
-
-pauseBtn.onclick = () => {
-  paused = !paused;
-
-  if (paused) {
-    stopTracking();
-    iframe.style.display = "none";
-    pauseBtn.textContent = "Retomar";
-  } else {
-    startTracking();
-    iframe.style.display = "block";
-    pauseBtn.textContent = "Pausa";
-  }
-};
-
-
-
-
-
-
-
-
