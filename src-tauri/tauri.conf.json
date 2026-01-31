@@ -1,0 +1,12 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devPath": "src",
+    "distDir": "src"
+  },
+  "package": {
+    "productName": "Nave",
+    "version": "0.1.0"
+  }
+}
