@@ -39,3 +39,43 @@ function formatTime(seconds) {
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
+
+import { startTracking, stopTracking, isActive } from "./tracker.js";
+
+let absent = false;
+
+// Janela perde foco
+window.addEventListener("blur", () => {
+  if (isActive()) {
+    stopTracking();
+    absent = true;
+  }
+});
+
+// Janela volta ao foco
+window.addEventListener("focus", () => {
+  if (absent) {
+    startTracking();
+    absent = false;
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (isActive()) {
+      stopTracking();
+      absent = true;
+    }
+  } else {
+    if (absent) {
+      startTracking();
+      absent = false;
+    }
+  }
+});
+
+
+
+
+
+
