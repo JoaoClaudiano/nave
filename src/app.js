@@ -74,6 +74,24 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+let paused = false;
+
+pauseBtn.onclick = () => {
+  paused = !paused;
+
+  if (paused) {
+    stopTracking();
+    iframe.style.display = "none";
+    pauseBtn.textContent = "Retomar";
+  } else {
+    startTracking();
+    iframe.style.display = "block";
+    pauseBtn.textContent = "Pausa";
+  }
+};
+
+
+
 
 
 
