@@ -704,32 +704,38 @@
 
     // Função genérica para renderizar o gráfico granulométrico em qualquer canvas
     function renderGranulometryChart(canvasId, blend = null) {
-        // CORREÇÃO: Destruir gráfico anterior se existir
+        // Destruir gráfico anterior se existir
         if (window[canvasId + 'chart']) {
             window[canvasId + 'chart'].destroy();
             window[canvasId + 'chart'] = null;
         }
-
+    
         const ctx = document.getElementById(canvasId).getContext('2d');
-
-        // Usa o blend otimizado se disponível, senão cria um blend padrão (dados da aba)
+    
+        // Obter dados do blend (otimizado ou fallback)
         let blendData = blend || optimizedBlend;
         if (!blendData) {
-            // Se não houver otimização, usa os dados atuais da interface da aba granulometria
+            // Fallback: usar dados atuais da interface sem otimização
             let agregados = [];
             for (let i = 0; i < 3; i++) {
                 let pass = [];
-                for (let j = 0; j < sieves.length; j++) pass.push(parseFloat(document.getElementById(`agg_${i}_sieve_${j}`).value) || 0);
+                for (let j = 0; j < sieves.length; j++) {
+                    pass.push(parseFloat(document.getElementById(`agg_${i}_sieve_${j}`).value) || 0);
+                }
                 agregados.push({
                     nome: document.getElementById(`agg_name_${i}`).value,
                     passing: pass
                 });
             }
             const target = gerarCurvaAlvo();
-            // Proporção simples: 50-25-25 apenas para visualização
-            let prop = [0.5, 0.25, 0.25];
+            // Proporção fixa para visualização (50% brita, 25% areia média, 25% areia fina)
+            const prop = [0.5, 0.25, 0.25];
             let combinedPass = new Array(sieves.length).fill(0);
-            for (let i = 0; i < sieves.length; i++) combinedPass[i] = prop[0]*agregados[0].passing[i] + prop[1]*agregados[1].passing[i] + prop[2]*agregados[2].passing[i];
+            for (let i = 0; i < sieves.length; i++) {
+                combinedPass[i] = prop[0] * agregados[0].passing[i] +
+                                  prop[1] * agregados[1].passing[i] +
+                                  prop[2] * agregados[2].passing[i];
+            }
             const dmc = calcularDMC(combinedPass);
             blendData = {
                 agregados: agregados,
@@ -738,39 +744,133 @@
                 dmc: dmc
             };
         }
-
+    
+        // Converter arrays de passantes para arrays de objetos {x, y}
+        // onde x = abertura da peneira, y = % passante
+        const sieveX = sieves; // já são os valores numéricos
+    
+        // Agregados individuais
+        const agg0Data = sieveX.map((x, i) => ({ x, y: blendData.agregados[0].passing[i] }));
+        const agg1Data = sieveX.map((x, i) => ({ x, y: blendData.agregados[1].passing[i] }));
+        const agg2Data = sieveX.map((x, i) => ({ x, y: blendData.agregados[2].passing[i] }));
+    
+        // Curva alvo e curva combinada
+        const targetData = sieveX.map((x, i) => ({ x, y: blendData.target[i] }));
+        const combinedData = sieveX.map((x, i) => ({ x, y: blendData.combinedPassing[i] }));
+    
+        // Dataset do marcador DMC (já está em {x, y})
+        const dmcData = [{ x: blendData.dmc, y: 95 }];
+    
         const datasets = [
-            // Agregados individuais (tracejados, finos) – ficam atrás
-            { label: `Individual: ${blendData.agregados[0].nome}`, data: blendData.agregados[0].passing, borderColor: 'rgba(107, 124, 139, 0.6)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 2, fill: false },
-            { label: `Individual: ${blendData.agregados[1].nome}`, data: blendData.agregados[1].passing, borderColor: 'rgba(46, 204, 113, 0.6)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 2, fill: false },
-            { label: `Individual: ${blendData.agregados[2].nome}`, data: blendData.agregados[2].passing, borderColor: 'rgba(231, 76, 60, 0.6)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 2, fill: false },
-            // Curva alvo e otimizada (sólidas, grossas)
-            { label: 'Curva Alvo', data: blendData.target, borderColor: '#0b3b5c', borderWidth: 4, pointRadius: 4, fill: false, tension: 0.1 },
-            { label: 'Curva Combinada (Otimizada)', data: blendData.combinedPassing, borderColor: '#ffb74d', borderWidth: 4, pointRadius: 4, fill: false, tension: 0.1 },
-            // Marcador do DMC
-            { label: `DMC = ${blendData.dmc} mm (95%)`, data: [{ x: blendData.dmc, y: 95 }], type: 'scatter', backgroundColor: 'red', pointRadius: 8, pointStyle: 'triangle', showLine: false }
+            // Agregados individuais (tracejados, mais finos) – do mais "grosso" ao mais "fino"
+            {
+                label: `Individual: ${blendData.agregados[0].nome}`,
+                data: agg0Data,
+                type: 'scatter',
+                showLine: true,
+                borderColor: 'rgba(107, 124, 139, 0.6)',
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                pointRadius: 2,
+                fill: false,
+                tension: 0.1
+            },
+            {
+                label: `Individual: ${blendData.agregados[1].nome}`,
+                data: agg1Data,
+                type: 'scatter',
+                showLine: true,
+                borderColor: 'rgba(46, 204, 113, 0.6)',
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                pointRadius: 2,
+                fill: false,
+                tension: 0.1
+            },
+            {
+                label: `Individual: ${blendData.agregados[2].nome}`,
+                data: agg2Data,
+                type: 'scatter',
+                showLine: true,
+                borderColor: 'rgba(231, 76, 60, 0.6)',
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                pointRadius: 2,
+                fill: false,
+                tension: 0.1
+            },
+            // Curva alvo (sólida, grossa, azul)
+            {
+                label: 'Curva Alvo',
+                data: targetData,
+                type: 'scatter',
+                showLine: true,
+                borderColor: '#0b3b5c',
+                borderWidth: 4,
+                pointRadius: 4,
+                fill: false,
+                tension: 0.1
+            },
+            // Curva combinada (sólida, grossa, laranja)
+            {
+                label: 'Curva Combinada (Otimizada)',
+                data: combinedData,
+                type: 'scatter',
+                showLine: true,
+                borderColor: '#ffb74d',
+                borderWidth: 4,
+                pointRadius: 4,
+                fill: false,
+                tension: 0.1
+            },
+            // Marcador do DMC (ponto vermelho em forma de triângulo)
+            {
+                label: `DMC = ${blendData.dmc} mm (95%)`,
+                data: dmcData,
+                type: 'scatter',
+                backgroundColor: 'red',
+                pointRadius: 8,
+                pointStyle: 'triangle',
+                showLine: false
+            }
         ];
-
+    
         window[canvasId + 'chart'] = new Chart(ctx, {
-            type: 'line',
+            type: 'scatter', // tipo base: scatter; cada dataset pode ter showLine
             data: { datasets },
             options: {
                 responsive: true,
                 plugins: {
-                    title: { display: true, text: 'Análise Granulométrica Comparativa' },
-                    legend: { position: 'bottom' },
-                    tooltip: { mode: 'index' }
+                    title: {
+                        display: true,
+                        text: 'Análise Granulométrica Comparativa'
+                    },
+                    legend: {
+                        position: 'bottom',
+                        labels: { usePointStyle: true } // melhora a legenda
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
                 },
                 scales: {
                     x: {
-                        // CORREÇÃO: usar 'logarithmic' ao invés de 'log'
                         type: 'logarithmic',
                         reverse: true,
-                        title: { display: true, text: 'Abertura da Peneira (mm) – escala logarítmica' },
-                        ticks: { callback: (val) => val.toFixed(1) }
+                        title: {
+                            display: true,
+                            text: 'Abertura da Peneira (mm) – escala logarítmica'
+                        },
+                        ticks: {
+                            callback: (val) => val.toFixed(1)
+                        }
                     },
                     y: {
-                        title: { display: true, text: '% Passante Acumulada' },
+                        title: {
+                            display: true,
+                            text: '% Passante Acumulada'
+                        },
                         beginAtZero: true,
                         max: 100
                     }
