@@ -6,10 +6,20 @@
     <title>Dosagem Profissional – Granulometria + 3 Métodos + Toggle Gráfico (CORRIGIDO)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <!-- Favicon tradicional (fallback) -->
+    <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    
+    <!-- Apple Touch Icon (iOS) -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    
+    <!-- Manifest para PWA (Android / Chrome) -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Cor do tema (opcional, usada por navegadores mobile) -->
+    <meta name="theme-color" content="#0b3b5c">
+    
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; }
         body { background: #f5f7fa; margin: 0; padding: 20px; display: flex; justify-content: center; }
