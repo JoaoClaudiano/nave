@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dosagem Profissional – Granulometria + 3 Métodos + Toggle Gráfico</title>
+    <title>Dosagem Profissional – Granulometria + 3 Métodos + Toggle Gráfico (CORRIGIDO)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; }
@@ -46,8 +46,8 @@
 </head>
 <body>
 <div class="app">
-    <h1>🧱 Dosagem Profissional – Concreto</h1>
-    <p style="color: #2c3e50;">Granulometria otimizada + 3 métodos (ABCP, IPT, ACI) + <strong>Umidade, Aditivo, Traço em Volume</strong>. Ative o toggle para ver a curva granulométrica junto com a curva de Abrams.</p>
+    <h1>🧱 Dosagem Profissional – Concreto (Corrigido)</h1>
+    <p style="color: #2c3e50;">Granulometria otimizada + 3 métodos (ABCP, IPT, ACI) + <strong>Umidade, Aditivo, Traço em Volume</strong>. Ative o toggle para ver a curva granulométrica (escala logarítmica correta) junto com a curva de Abrams.</p>
 
     <!-- Abas -->
     <div class="tabs">
@@ -223,6 +223,16 @@
 </div>
 
 <script>
+    // ----------------------------------------------------------------
+    // CORREÇÃO: Registrar a escala logarítmica (Chart.js v4)
+    // ----------------------------------------------------------------
+    if (typeof Chart !== 'undefined') {
+        // A escala 'logarithmic' já está incluída no bundle, mas precisamos usar o nome correto
+        // Não é necessário registrar manualmente, apenas usar 'logarithmic' no lugar de 'log'.
+        // O erro 'log is not a registered scale' ocorria porque usamos 'log' incorretamente.
+        // Vamos corrigir nos options das escalas.
+    }
+
     // ----------------------------------------------------------------
     // CONSTANTES E BIBLIOTECAS – DOSAGEM
     // ----------------------------------------------------------------
@@ -694,14 +704,18 @@
 
     // Função genérica para renderizar o gráfico granulométrico em qualquer canvas
     function renderGranulometryChart(canvasId, blend = null) {
+        // CORREÇÃO: Destruir gráfico anterior se existir
+        if (window[canvasId + 'chart']) {
+            window[canvasId + 'chart'].destroy();
+            window[canvasId + 'chart'] = null;
+        }
+
         const ctx = document.getElementById(canvasId).getContext('2d');
-        if (window[canvasId + 'chart']) window[canvasId + 'chart'].destroy();
 
         // Usa o blend otimizado se disponível, senão cria um blend padrão (dados da aba)
         let blendData = blend || optimizedBlend;
         if (!blendData) {
             // Se não houver otimização, usa os dados atuais da interface da aba granulometria
-            // (para permitir visualização mesmo sem otimizar)
             let agregados = [];
             for (let i = 0; i < 3; i++) {
                 let pass = [];
@@ -749,7 +763,8 @@
                 },
                 scales: {
                     x: {
-                        type: 'log',
+                        // CORREÇÃO: usar 'logarithmic' ao invés de 'log'
+                        type: 'logarithmic',
                         reverse: true,
                         title: { display: true, text: 'Abertura da Peneira (mm) – escala logarítmica' },
                         ticks: { callback: (val) => val.toFixed(1) }
