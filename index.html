@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dosagem Profissional – Granulometria + 3 Métodos + Toggle Gráfico</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; }
+        body { background: #f5f7fa; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .app { max-width: 1400px; width: 100%; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); padding: 25px; }
+        h1 { color: #0b3b5c; border-bottom: 3px solid #ffb74d; padding-bottom: 10px; }
+        h2, h3 { color: #0b3b5c; }
+        .tabs { display: flex; gap: 5px; margin: 20px 0 10px; flex-wrap: wrap; }
+        .tab-btn { padding: 12px 24px; border: none; background: #e0e7ef; border-radius: 30px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .tab-btn.active { background: #0b3b5c; color: white; }
+        .tab-content { display: none; animation: fade 0.3s; }
+        .tab-content.active { display: block; }
+        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 15px; background: #f0f4fa; padding: 20px; border-radius: 16px; margin: 15px 0; }
+        .form-group { display: flex; flex-direction: column; }
+        label { font-size: 0.85rem; font-weight: 600; color: #2c3e50; margin-bottom: 4px; }
+        input, select { padding: 10px; border: 2px solid #dfe6ed; border-radius: 10px; font-size: 0.95rem; transition: 0.2s; }
+        input:focus, select:focus { border-color: #ffb74d; outline: none; }
+        input[type=number] { -moz-appearance: textfield; }
+        input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+        button { background: #ffb74d; border: none; padding: 14px 28px; border-radius: 40px; font-weight: 700; font-size: 1rem; color: #1a2c3c; cursor: pointer; margin: 15px 0; transition: 0.2s; border: 2px solid transparent; }
+        button:hover { background: #ffa21c; transform: scale(1.02); }
+        .result-card { background: #0b3b5c; color: white; padding: 20px; border-radius: 20px; margin-top: 20px; }
+        .traco { font-size: 1.7rem; font-weight: 800; background: #ffb74d; color: #0b3b5c; display: inline-block; padding: 8px 25px; border-radius: 40px; margin: 15px 0; }
+        .volume-box { background: #2a4d6e; padding: 15px; border-radius: 16px; margin-top: 10px; }
+        .canvas-container { background: white; border-radius: 20px; padding: 15px; margin-top: 25px; border: 1px solid #dde5ed; }
+        canvas { width: 100% !important; height: auto !important; max-height: 300px; }
+        .table-responsive { overflow-x: auto; margin: 15px 0; }
+        table { border-collapse: collapse; width: 100%; background: white; border-radius: 12px; }
+        th, td { border: 1px solid #ccd7e0; padding: 8px; text-align: center; }
+        th { background: #0b3b5c; color: white; }
+        .agg-input { background: #f9fcff; padding: 15px; border-radius: 16px; margin-bottom: 10px; }
+        .footnote { font-size: 0.8rem; color: #6b7c8b; margin-top: 30px; text-align: center; }
+        .error-message { color: #d32f2f; background: #ffcdd2; padding: 10px; border-radius: 8px; margin: 10px 0; }
+        .toggle-container { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+        .toggle-checkbox { width: 20px; height: 20px; cursor: pointer; }
+        .chart-row { display: flex; flex-wrap: wrap; gap: 20px; }
+        .chart-col { flex: 1 1 45%; min-width: 300px; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <h1>🧱 Dosagem Profissional – Concreto</h1>
+    <p style="color: #2c3e50;">Granulometria otimizada + 3 métodos (ABCP, IPT, ACI) + <strong>Umidade, Aditivo, Traço em Volume</strong>. Ative o toggle para ver a curva granulométrica junto com a curva de Abrams.</p>
+
+    <!-- Abas -->
+    <div class="tabs">
+        <button id="tab1btn" class="tab-btn active">📊 Granulometria e Otimização</button>
+        <button id="tab2btn" class="tab-btn">🔹 ABCP</button>
+        <button id="tab3btn" class="tab-btn">🧪 IPT/EPUSP</button>
+        <button id="tab4btn" class="tab-btn">🌎 ACI 211</button>
+    </div>
+
+    <!-- ========== ABA 1: CURVA GRANULOMÉTRICA E OTIMIZAÇÃO ========== -->
+    <div id="tab1" class="tab-content active">
+        <h2>📊 Otimização Granulométrica</h2>
+        <p>Defina até 3 agregados e a curva alvo. A ferramenta encontra a proporção ideal e calcula DMC e MF.</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Curva alvo</label>
+                <select id="targetCurveType">
+                    <option value="faury">Faury (concreto)</option>
+                    <option value="fuller">Fuller (máxima compacidade)</option>
+                    <option value="power045">Curva 0,45 (FHWA)</option>
+                </select>
+            </div>
+            <div class="form-group" id="fauryDmaxGroup">
+                <label>Dmáx (mm) para Faury</label>
+                <input type="number" id="fauryDmax" value="19" step="0.1" min="0.1">
+            </div>
+            <div class="form-group" id="fullerDmaxGroup" style="display:none;">
+                <label>Dmáx (mm) para Fuller</label>
+                <input type="number" id="fullerDmax" value="19" step="0.1" min="0.1">
+            </div>
+            <div class="form-group" id="fullerExpGroup" style="display:none;">
+                <label>Expoente (n)</label>
+                <input type="number" id="fullerExp" value="0.5" step="0.05" min="0.3" max="0.7">
+            </div>
+        </div>
+        <!-- Agregados dinâmicos -->
+        <div id="agregados-container"></div>
+        <button onclick="otimizarMistura()">🔬 Calcular mistura ótima</button>
+        <button onclick="aplicarParametrosDosagem()" style="background:#0b3b5c; color:white;">⬇️ Aplicar parâmetros aos métodos de dosagem</button>
+        <div id="otimizacao_result" class="result-card" style="display:none;"></div>
+        <div id="gradingChartContainer" class="canvas-container" style="display:none;">
+            <canvas id="gradingChart"></canvas>
+        </div>
+        <div id="tabelaCombinada" style="margin-top:20px;"></div>
+    </div>
+
+    <!-- ========== ABA 2: ABCP (com umidade, aditivo, volume e toggle granulométrico) ========== -->
+    <div id="tab2" class="tab-content">
+        <h2>🔹 Método ABCP</h2>
+        <div class="form-grid">
+            <div class="form-group"><label>fck (MPa)</label><input type="number" id="abcp_fck" value="30" step="0.1" min="1"></div>
+            <div class="form-group"><label>Desvio padrão (MPa)</label><input type="number" id="abcp_sd" value="4.0" step="0.1" min="0"></div>
+            <div class="form-group"><label>Tipo de cimento</label><select id="abcp_cim"><option value="CPV">CPV</option><option value="CPII">CPII</option></select></div>
+            <div class="form-group"><label>DMC brita (mm)</label><input type="number" id="abcp_dmc" value="19" step="0.1" min="0.1"></div>
+            <div class="form-group"><label>Módulo de finura areia</label><input type="number" id="abcp_mf" value="2.4" step="0.1" min="0.5" max="4"></div>
+            <div class="form-group"><label>Abatimento (mm)</label><select id="abcp_slump"><option value="40">40</option><option value="60">60</option><option value="80" selected>80</option><option value="100">100</option></select></div>
+            <div class="form-group"><label>Massa esp. cimento (kg/m³)</label><input type="number" id="abcp_mcim" value="3100" min="2000"></div>
+            <div class="form-group"><label>Massa esp. areia (kg/m³)</label><input type="number" id="abcp_mareia" value="2620" min="2000"></div>
+            <div class="form-group"><label>Massa esp. brita (kg/m³)</label><input type="number" id="abcp_mbrita" value="2650" min="2000"></div>
+            <div class="form-group"><label>Massa unit. brita (kg/m³)</label><input type="number" id="abcp_mubrita" value="1500" min="1000"></div>
+        </div>
+        <div class="form-grid" style="background:#e6edf4;">
+            <div class="form-group"><label>🌧️ Umidade da areia (%)</label><input type="number" id="abcp_umidade" value="3" step="0.1" min="0" max="20"></div>
+            <div class="form-group"><label>🧪 Redução de água por aditivo (%)</label><input type="number" id="abcp_aditivo" value="0" step="1" min="0" max="40"></div>
+            <div class="form-group"><label>📦 Volume lata padrão (L)</label><input type="number" id="abcp_lata" value="18" step="0.5" min="1"></div>
+        </div>
+
+        <!-- Toggle para exibir curva granulométrica -->
+        <div class="toggle-container">
+            <input type="checkbox" id="abcp_toggle_gran" class="toggle-checkbox" onchange="toggleGranulometryChart('abcp')">
+            <label for="abcp_toggle_gran"><strong>📊 Exibir curva granulométrica otimizada junto com a curva de Abrams</strong></label>
+        </div>
+
+        <button onclick="calcularABCP()">📐 Calcular traço ABCP (completo)</button>
+        <div id="abcp_result" class="result-card"></div>
+
+        <!-- Área dos gráficos: Abrams e (opcional) granulometria -->
+        <div class="chart-row">
+            <div class="chart-col">
+                <div class="canvas-container">
+                    <canvas id="chartABCP"></canvas>
+                </div>
+            </div>
+            <div class="chart-col" id="abcp_gran_container" style="display: none;">
+                <div class="canvas-container">
+                    <canvas id="gradingChart_abcp"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== ABA 3: IPT/EPUSP (com toggle) ========== -->
+    <div id="tab3" class="tab-content">
+        <h2>🧪 Método IPT/EPUSP</h2>
+        <div class="form-grid">
+            <div class="form-group"><label>fck (MPa)</label><input type="number" id="ipt_fck" value="30" step="0.1" min="1"></div>
+            <div class="form-group"><label>Desvio padrão (MPa)</label><input type="number" id="ipt_sd" value="4.0" step="0.1" min="0"></div>
+            <div class="form-group"><label>Tipo de cimento</label><select id="ipt_cim"><option value="CPV">CPV</option><option value="CPII">CPII</option></select></div>
+            <div class="form-group"><label>DMC brita (mm)</label><input type="number" id="ipt_dmc" value="19" step="0.1" min="0.1"></div>
+            <div class="form-group"><label>Abatimento (mm)</label><select id="ipt_slump"><option value="40">40</option><option value="60">60</option><option value="80" selected>80</option><option value="100">100</option></select></div>
+            <div class="form-group"><label>Massa esp. cimento (kg/m³)</label><input type="number" id="ipt_mcim" value="3100" min="2000"></div>
+            <div class="form-group"><label>Massa esp. areia (kg/m³)</label><input type="number" id="ipt_mareia" value="2620" min="2000"></div>
+            <div class="form-group"><label>Massa esp. brita (kg/m³)</label><input type="number" id="ipt_mbrita" value="2650" min="2000"></div>
+        </div>
+        <div class="form-grid" style="background:#e6edf4;">
+            <div class="form-group"><label>🌧️ Umidade da areia (%)</label><input type="number" id="ipt_umidade" value="3" step="0.1" min="0" max="20"></div>
+            <div class="form-group"><label>🧪 Redução de água por aditivo (%)</label><input type="number" id="ipt_aditivo" value="0" step="1" min="0" max="40"></div>
+            <div class="form-group"><label>📦 Volume lata padrão (L)</label><input type="number" id="ipt_lata" value="18" step="0.5" min="1"></div>
+        </div>
+        <div class="toggle-container">
+            <input type="checkbox" id="ipt_toggle_gran" class="toggle-checkbox" onchange="toggleGranulometryChart('ipt')">
+            <label for="ipt_toggle_gran"><strong>📊 Exibir curva granulométrica otimizada junto com a curva de Abrams</strong></label>
+        </div>
+        <button onclick="calcularIPT()">📐 Calcular traço IPT/EPUSP</button>
+        <div id="ipt_result" class="result-card"></div>
+        <div class="chart-row">
+            <div class="chart-col">
+                <div class="canvas-container">
+                    <canvas id="chartIPT"></canvas>
+                </div>
+            </div>
+            <div class="chart-col" id="ipt_gran_container" style="display: none;">
+                <div class="canvas-container">
+                    <canvas id="gradingChart_ipt"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== ABA 4: ACI 211 (com toggle) ========== -->
+    <div id="tab4" class="tab-content">
+        <h2>🌎 Método ACI 211</h2>
+        <div class="form-grid">
+            <div class="form-group"><label>Resistência f'c (MPa)</label><input type="number" id="aci_fc" value="30" step="0.1" min="1"></div>
+            <div class="form-group"><label>Desvio padrão (MPa)</label><input type="number" id="aci_sd" value="4.0" step="0.1" min="0"></div>
+            <div class="form-group"><label>Tipo de cimento</label><select id="aci_cim"><option value="CPV">CPV</option><option value="CPII">CPII</option></select></div>
+            <div class="form-group"><label>Dmax brita (mm)</label><input type="number" id="aci_dmc" value="19" step="0.1" min="0.1"></div>
+            <div class="form-group"><label>Módulo finura areia</label><input type="number" id="aci_mf" value="2.6" step="0.1" min="0.5" max="4"></div>
+            <div class="form-group"><label>Abatimento (mm)</label><select id="aci_slump"><option value="25">25-50</option><option value="75">50-100</option><option value="100" selected>75-125</option><option value="150">125-175</option></select></div>
+            <div class="form-group"><label>Tipo agregado</label><select id="aci_aggtype"><option value="crushed">Britado</option><option value="rounded">Arredondado</option></select></div>
+            <div class="form-group"><label>Massa esp. cimento (kg/m³)</label><input type="number" id="aci_mcim" value="3150" min="2000"></div>
+            <div class="form-group"><label>Massa esp. areia (kg/m³)</label><input type="number" id="aci_mareia" value="2620" min="2000"></div>
+            <div class="form-group"><label>Massa esp. brita (kg/m³)</label><input type="number" id="aci_mbrita" value="2700" min="2000"></div>
+            <div class="form-group"><label>Massa unit. brita (kg/m³)</label><input type="number" id="aci_mubrita" value="1600" min="1000"></div>
+        </div>
+        <div class="form-grid" style="background:#e6edf4;">
+            <div class="form-group"><label>🌧️ Umidade da areia (%)</label><input type="number" id="aci_umidade" value="3" step="0.1" min="0" max="20"></div>
+            <div class="form-group"><label>🧪 Redução de água por aditivo (%)</label><input type="number" id="aci_aditivo" value="0" step="1" min="0" max="40"></div>
+            <div class="form-group"><label>📦 Volume lata padrão (L)</label><input type="number" id="aci_lata" value="18" step="0.5" min="1"></div>
+        </div>
+        <div class="toggle-container">
+            <input type="checkbox" id="aci_toggle_gran" class="toggle-checkbox" onchange="toggleGranulometryChart('aci')">
+            <label for="aci_toggle_gran"><strong>📊 Exibir curva granulométrica otimizada junto com a curva de Abrams</strong></label>
+        </div>
+        <button onclick="calcularACI()">📐 Calcular traço ACI 211</button>
+        <div id="aci_result" class="result-card"></div>
+        <div class="chart-row">
+            <div class="chart-col">
+                <div class="canvas-container">
+                    <canvas id="chartACI"></canvas>
+                </div>
+            </div>
+            <div class="chart-col" id="aci_gran_container" style="display: none;">
+                <div class="canvas-container">
+                    <canvas id="gradingChart_aci"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="footnote">
+        ⚠️ Tabelas e coeficientes simplificados para fins didáticos. Consulte normas técnicas para projetos reais.
+    </div>
+</div>
+
+<script>
+    // ----------------------------------------------------------------
+    // CONSTANTES E BIBLIOTECAS – DOSAGEM
+    // ----------------------------------------------------------------
+    const abrams = { CPV: { K1: 85.0, K2: 6.5 }, CPII: { K1: 75.0, K2: 6.0 } };
+    const aguaTabela = {
+        9.5:  { 40:200, 50:215, 60:225, 80:235, 100:245 },
+        19:   { 40:185, 50:200, 60:210, 80:220, 100:230 },
+        25:   { 40:175, 50:190, 60:200, 80:210, 100:220 },
+        32:   { 40:165, 50:180, 60:190, 80:200, 100:210 },
+        37.5: { 40:160, 50:175, 60:185, 80:195, 100:205 }
+    };
+    const volBritaTabela = {
+        9.5:  { 1.8:0.71, 2.0:0.68, 2.2:0.65, 2.4:0.62, 2.6:0.59, 2.8:0.56 },
+        19:   { 1.8:0.77, 2.0:0.74, 2.2:0.71, 2.4:0.68, 2.6:0.65, 2.8:0.62 },
+        25:   { 1.8:0.80, 2.0:0.77, 2.2:0.74, 2.4:0.71, 2.6:0.68, 2.8:0.65 },
+        32:   { 1.8:0.83, 2.0:0.80, 2.2:0.77, 2.4:0.74, 2.6:0.71, 2.8:0.68 },
+        37.5: { 1.8:0.86, 2.0:0.83, 2.2:0.80, 2.4:0.77, 2.6:0.74, 2.8:0.71 }
+    };
+
+    function teorArgamassaIPT(dmc, slump) {
+        const base = { 9.5:0.54, 19:0.52, 25:0.50, 32:0.48, 37.5:0.46 };
+        let alfa = base[dmc] || 0.52;
+        alfa += (slump - 40) * 0.0015;
+        return Math.min(Math.max(alfa, 0.45), 0.62);
+    }
+
+    function aguaACI(dmc, slump, aggType) {
+        if (aggType === 'crushed') {
+            if (dmc <= 9.5) return {25:207, 75:217, 100:228, 150:235}[slump] || 228;
+            else if (dmc <= 19) return {25:190, 75:200, 100:205, 150:215}[slump] || 205;
+            else if (dmc <= 25) return {25:180, 75:190, 100:195, 150:205}[slump] || 195;
+            else if (dmc <= 37.5) return {25:160, 75:175, 100:180, 150:190}[slump] || 180;
+            else return 175;
+        } else {
+            if (dmc <= 9.5) return {25:190, 75:200, 100:210, 150:220}[slump] || 210;
+            else if (dmc <= 19) return {25:175, 75:185, 100:190, 150:200}[slump] || 190;
+            else if (dmc <= 25) return {25:165, 75:175, 100:180, 150:190}[slump] || 180;
+            else if (dmc <= 37.5) return {25:145, 75:160, 100:165, 150:175}[slump] || 165;
+            else return 160;
+        }
+    }
+
+    function volBritaACI(dmc, mf) {
+        const tabela = {
+            9.5:  { 2.4:0.50, 2.6:0.48, 2.8:0.46, 3.0:0.44 },
+            19:   { 2.4:0.66, 2.6:0.64, 2.8:0.62, 3.0:0.60 },
+            25:   { 2.4:0.71, 2.6:0.69, 2.8:0.67, 3.0:0.65 },
+            37.5: { 2.4:0.76, 2.6:0.74, 2.8:0.72, 3.0:0.70 }
+        };
+        let dmcKey = dmc; if (!tabela[dmcKey]) dmcKey = 19;
+        const faixas = tabela[dmcKey];
+        if (mf <= 2.4) return faixas[2.4];
+        if (mf >= 3.0) return faixas[3.0];
+        if (mf <= 2.6) return interpolacao(mf, 2.4, 2.6, faixas[2.4], faixas[2.6]);
+        if (mf <= 2.8) return interpolacao(mf, 2.6, 2.8, faixas[2.6], faixas[2.8]);
+        return interpolacao(mf, 2.8, 3.0, faixas[2.8], faixas[3.0]);
+    }
+
+    function interpolacao(x, x1, x2, y1, y2) { return y1 + (y2 - y1) * (x - x1) / (x2 - x1); }
+
+    // ----------------------------------------------------------------
+    // FUNÇÕES AUXILIARES (correção de umidade, aditivo, volume)
+    // ----------------------------------------------------------------
+    function aplicarAditivo(aguaBase, reducaoPercentual, cimento, ac_original) {
+        if (reducaoPercentual <= 0) return { aguaEfetiva: aguaBase, cimentoAjustado: cimento, acEfetivo: ac_original };
+        const fator = 1 - reducaoPercentual / 100;
+        const aguaEfetiva = aguaBase * fator;
+        const cimentoAjustado = aguaEfetiva / ac_original;
+        return { aguaEfetiva, cimentoAjustado, acEfetivo: ac_original };
+    }
+
+    function corrigirUmidade(areiaSeca, aguaPrevista, umidadePercentual) {
+        if (umidadePercentual <= 0) return { areiaUnida: areiaSeca, aguaCorrigida: aguaPrevista, aguaAdicional: 0 };
+        const umidade = umidadePercentual / 100;
+        const aguaNaAreia = areiaSeca * umidade;
+        const areiaUnida = areiaSeca + aguaNaAreia;
+        const aguaCorrigida = aguaPrevista - aguaNaAreia;
+        return { areiaUnida, aguaCorrigida, aguaAdicional: -aguaNaAreia };
+    }
+
+    function calcularTraçoVolume(cimento, areia, brita, agua, densCim, densAreia, densBrita, volLataPadrao) {
+        const massaUnitCimento = 1200; // kg/m³ solto
+        const massaUnitAreia = 1500;    // típico
+        const massaUnitBrita = 1400;    // típico
+        const volumeCimento = cimento / massaUnitCimento;
+        const volumeAreia = areia / massaUnitAreia;
+        const volumeBrita = brita / massaUnitBrita;
+        const volumeAgua = agua / 1000;
+        const cimentoPorSaco = 50;
+        const numSacos = cimento / cimentoPorSaco;
+        const areiaPorSaco = areia / numSacos;
+        const britaPorSaco = brita / numSacos;
+        const aguaPorSaco = agua / numSacos;
+        const volumeAreiaPorSaco = areiaPorSaco / massaUnitAreia;
+        const volumeBritaPorSaco = britaPorSaco / massaUnitBrita;
+        const volumeAguaPorSaco = aguaPorSaco / 1000;
+        const latasAreia = (volumeAreiaPorSaco * 1000) / volLataPadrao;
+        const latasBrita = (volumeBritaPorSaco * 1000) / volLataPadrao;
+        const latasAgua = (volumeAguaPorSaco * 1000) / volLataPadrao;
+        return {
+            tracoVolume: `1 saco cimento : ${latasAreia.toFixed(1)} latas de areia : ${latasBrita.toFixed(1)} latas de brita : ${latasAgua.toFixed(1)} latas de água`,
+            numSacos: numSacos.toFixed(1),
+            areiaLata: latasAreia.toFixed(1),
+            britaLata: latasBrita.toFixed(1),
+            agualata: latasAgua.toFixed(1)
+        };
+    }
+
+    // ----------------------------------------------------------------
+    // FUNÇÕES DE DOSAGEM (ABCP, IPT, ACI)
+    // ----------------------------------------------------------------
+    function calcularABCP() {
+        try {
+            const fck = parseFloat(document.getElementById('abcp_fck').value);
+            const sd = parseFloat(document.getElementById('abcp_sd').value);
+            const tipoCim = document.getElementById('abcp_cim').value;
+            const dmc = parseFloat(document.getElementById('abcp_dmc').value);
+            const mf = parseFloat(document.getElementById('abcp_mf').value);
+            const slump = parseInt(document.getElementById('abcp_slump').value);
+            const mcim = parseFloat(document.getElementById('abcp_mcim').value);
+            const mareia = parseFloat(document.getElementById('abcp_mareia').value);
+            const mbrita = parseFloat(document.getElementById('abcp_mbrita').value);
+            const mubrita = parseFloat(document.getElementById('abcp_mubrita').value);
+            const umidade = parseFloat(document.getElementById('abcp_umidade').value) || 0;
+            const reducaoAditivo = parseFloat(document.getElementById('abcp_aditivo').value) || 0;
+            const volLata = parseFloat(document.getElementById('abcp_lata').value) || 18;
+
+            if (fck <= 0 || sd < 0 || dmc <= 0 || mf <= 0) throw new Error("Preencha todos os campos corretamente.");
+
+            const fcj = fck + 1.65 * sd;
+            const coef = abrams[tipoCim];
+            const ac = (Math.log10(coef.K1) - Math.log10(fcj)) / Math.log10(coef.K2);
+            let aguaBase = aguaTabela[dmc]?.[slump] || 220;
+            let cimentoBase = aguaBase / ac;
+            const aditivo = aplicarAditivo(aguaBase, reducaoAditivo, cimentoBase, ac);
+            const aguaEfetiva = aditivo.aguaEfetiva;
+            const cimento = aditivo.cimentoAjustado;
+            let volBrita = volBritaTabela[dmc]?.[mf]; if (!volBrita) volBrita = 0.68;
+            const brita = volBrita * mubrita;
+            const volCim = cimento / mcim;
+            const volAgua = aguaEfetiva / 1000;
+            const volBritaAbs = brita / mbrita;
+            let volAreia = 1 - (volCim + volAgua + volBritaAbs); if (volAreia < 0) volAreia = 0.1;
+            const areiaSeca = volAreia * mareia;
+            const umid = corrigirUmidade(areiaSeca, aguaEfetiva, umidade);
+            const areiaUnida = umid.areiaUnida;
+            const aguaCorrigida = umid.aguaCorrigida;
+            const tracoAreia = areiaSeca / cimento;
+            const tracoBrita = brita / cimento;
+            const tracoAgua = aguaEfetiva / cimento;
+            const tracoAreiaUnida = areiaUnida / cimento;
+            const tracoAguaCorrigida = aguaCorrigida / cimento;
+            const tracoVol = calcularTraçoVolume(cimento, areiaUnida, brita, aguaCorrigida, mcim, mareia, mbrita, volLata);
+
+            document.getElementById('abcp_result').innerHTML = `
+                <h3 style="color:white; margin-top:0;">✅ Traço ABCP (completo)</h3>
+                <div class="traco">1 : ${tracoAreia.toFixed(2)} : ${tracoBrita.toFixed(2)} : ${tracoAgua.toFixed(2)} (massa, seco)</div>
+                <p style="background: #2a4d6e; padding: 10px; border-radius: 12px;">
+                    <strong>🌧️ Com umidade (${umidade}%) e aditivo (${reducaoAditivo}%):</strong><br>
+                    1 : ${tracoAreiaUnida.toFixed(2)} : ${tracoBrita.toFixed(2)} : ${tracoAguaCorrigida.toFixed(2)} (massa, úmido)
+                </p>
+                <div class="volume-box">
+                    <strong>📦 Traço para canteiro (lata ${volLata}L):</strong><br>
+                    ${tracoVol.tracoVolume}<br>
+                    <span style="font-size:0.9rem;">(${tracoVol.numSacos} sacos de cimento por m³)</span>
+                </div>
+                <p><strong>Cimento:</strong> ${cimento.toFixed(1)} kg/m³ | <strong>a/c efetivo:</strong> ${ac.toFixed(3)}</p>
+                <p><span style="background:#ffb74d; color:#0b3b5c; padding:5px 10px; border-radius:20px;">
+                    Areia úmida: ${areiaUnida.toFixed(1)} kg | Brita: ${brita.toFixed(1)} kg | Água: ${aguaCorrigida.toFixed(1)} kg
+                </span></p>
+            `;
+            gerarGrafico('chartABCP', ac, fcj, tipoCim);
+            // Se o toggle estiver ativo, atualiza o gráfico granulométrico
+            if (document.getElementById('abcp_toggle_gran').checked) {
+                renderGranulometryChart('gradingChart_abcp');
+            }
+        } catch (e) { alert("Erro no cálculo ABCP: " + e.message); }
+    }
+
+    function calcularIPT() {
+        try {
+            const fck = parseFloat(document.getElementById('ipt_fck').value);
+            const sd = parseFloat(document.getElementById('ipt_sd').value);
+            const tipoCim = document.getElementById('ipt_cim').value;
+            const dmc = parseFloat(document.getElementById('ipt_dmc').value);
+            const slump = parseInt(document.getElementById('ipt_slump').value);
+            const mcim = parseFloat(document.getElementById('ipt_mcim').value);
+            const mareia = parseFloat(document.getElementById('ipt_mareia').value);
+            const mbrita = parseFloat(document.getElementById('ipt_mbrita').value);
+            const umidade = parseFloat(document.getElementById('ipt_umidade').value) || 0;
+            const reducaoAditivo = parseFloat(document.getElementById('ipt_aditivo').value) || 0;
+            const volLata = parseFloat(document.getElementById('ipt_lata').value) || 18;
+            if (fck <= 0) throw new Error("fck inválido");
+            const fcj = fck + 1.65 * sd;
+            const coef = abrams[tipoCim];
+            const ac = (Math.log10(coef.K1) - Math.log10(fcj)) / Math.log10(coef.K2);
+            let aguaBase = aguaTabela[dmc]?.[slump] || 220;
+            let cimentoBase = aguaBase / ac;
+            const aditivo = aplicarAditivo(aguaBase, reducaoAditivo, cimentoBase, ac);
+            const aguaEfetiva = aditivo.aguaEfetiva;
+            const cimento = aditivo.cimentoAjustado;
+            const vCim = cimento / mcim;
+            const vAgua = aguaEfetiva / 1000;
+            let alfa = teorArgamassaIPT(dmc, slump);
+            const vArg = alfa;
+            let vAreia = vArg - vCim - vAgua; if (vAreia < 0) vAreia = 0.1;
+            const areiaSeca = vAreia * mareia;
+            const vBrita = 1 - alfa;
+            const brita = vBrita * mbrita;
+            const umid = corrigirUmidade(areiaSeca, aguaEfetiva, umidade);
+            const areiaUnida = umid.areiaUnida;
+            const aguaCorrigida = umid.aguaCorrigida;
+            const tracoAreia = areiaSeca / cimento;
+            const tracoBrita = brita / cimento;
+            const tracoAgua = aguaEfetiva / cimento;
+            const tracoAreiaUnida = areiaUnida / cimento;
+            const tracoAguaCorrigida = aguaCorrigida / cimento;
+            const tracoVol = calcularTraçoVolume(cimento, areiaUnida, brita, aguaCorrigida, mcim, mareia, mbrita, volLata);
+            document.getElementById('ipt_result').innerHTML = `
+                <h3 style="color:white;">✅ Traço IPT/EPUSP</h3>
+                <div class="traco">1 : ${tracoAreia.toFixed(2)} : ${tracoBrita.toFixed(2)} : ${tracoAgua.toFixed(2)} (massa, seco)</div>
+                <p style="background: #2a4d6e; padding: 10px; border-radius: 12px;">
+                    <strong>🌧️ Com umidade (${umidade}%) e aditivo (${reducaoAditivo}%):</strong><br>
+                    1 : ${tracoAreiaUnida.toFixed(2)} : ${tracoBrita.toFixed(2)} : ${tracoAguaCorrigida.toFixed(2)} (massa, úmido)
+                </p>
+                <div class="volume-box">
+                    <strong>📦 Traço para canteiro (lata ${volLata}L):</strong><br>
+                    ${tracoVol.tracoVolume}
+                </div>
+                <p><strong>Cimento:</strong> ${cimento.toFixed(1)} kg/m³ | a/c: ${ac.toFixed(3)} | α: ${(alfa*100).toFixed(1)}%</p>
+                <p><span style="background:#ffb74d; color:#0b3b5c; padding:5px 10px; border-radius:20px;">
+                    Areia úmida: ${areiaUnida.toFixed(1)} kg | Brita: ${brita.toFixed(1)} kg | Água: ${aguaCorrigida.toFixed(1)} kg
+                </span></p>
+            `;
+            gerarGrafico('chartIPT', ac, fcj, tipoCim);
+            if (document.getElementById('ipt_toggle_gran').checked) {
+                renderGranulometryChart('gradingChart_ipt');
+            }
+        } catch (e) { alert("Erro IPT/EPUSP: " + e.message); }
+    }
+
+    function calcularACI() {
+        try {
+            const fc = parseFloat(document.getElementById('aci_fc').value);
+            const sd = parseFloat(document.getElementById('aci_sd').value);
+            const tipoCim = document.getElementById('aci_cim').value;
+            const dmc = parseFloat(document.getElementById('aci_dmc').value);
+            const mf = parseFloat(document.getElementById('aci_mf').value);
+            const slump = parseInt(document.getElementById('aci_slump').value);
+            const aggType = document.getElementById('aci_aggtype').value;
+            const mcim = parseFloat(document.getElementById('aci_mcim').value);
+            const mareia = parseFloat(document.getElementById('aci_mareia').value);
+            const mbrita = parseFloat(document.getElementById('aci_mbrita').value);
+            const mubrita = parseFloat(document.getElementById('aci_mubrita').value);
+            const umidade = parseFloat(document.getElementById('aci_umidade').value) || 0;
+            const reducaoAditivo = parseFloat(document.getElementById('aci_aditivo').value) || 0;
+            const volLata = parseFloat(document.getElementById('aci_lata').value) || 18;
+            if (fc <= 0) throw new Error("f'c inválido");
+            const fcj = fc + 1.65 * sd;
+            const coef = abrams[tipoCim];
+            const ac = (Math.log10(coef.K1) - Math.log10(fcj)) / Math.log10(coef.K2);
+            let aguaBase = aguaACI(dmc, slump, aggType);
+            let cimentoBase = aguaBase / ac;
+            const aditivo = aplicarAditivo(aguaBase, reducaoAditivo, cimentoBase, ac);
+            const aguaEfetiva = aditivo.aguaEfetiva;
+            const cimento = aditivo.cimentoAjustado;
+            let volBrita = volBritaACI(dmc, mf);
+            const brita = volBrita * mubrita;
+            const vCim = cimento / mcim;
+            const vAgua = aguaEfetiva / 1000;
+            const vBrita = brita / mbrita;
+            let teorAr = 0.015; if (dmc >= 25) teorAr = 0.01; if (dmc >= 37.5) teorAr = 0.005;
+            const vAr = teorAr;
+            let vAreia = 1 - (vCim + vAgua + vBrita + vAr); if (vAreia < 0) vAreia = 0.1;
+            const areiaSeca = vAreia * mareia;
+            const umid = corrigirUmidade(areiaSeca, aguaEfetiva, umidade);
+            const areiaUnida = umid.areiaUnida;
+            const aguaCorrigida = umid.aguaCorrigida;
+            const tracoAreia = areiaSeca / cimento;
+            const tracoBrita = brita / cimento;
+            const tracoAgua = aguaEfetiva / cimento;
+            const tracoAreiaUnida = areiaUnida / cimento;
+            const tracoAguaCorrigida = aguaCorrigida / cimento;
+            const tracoVol = calcularTraçoVolume(cimento, areiaUnida, brita, aguaCorrigida, mcim, mareia, mbrita, volLata);
+            document.getElementById('aci_result').innerHTML = `
+                <h3 style="color:white;">✅ Traço ACI 211</h3>
+                <div class="traco">1 : ${tracoAreia.toFixed(2)} : ${tracoBrita.toFixed(2)} : ${tracoAgua.toFixed(2)} (massa, seco)</div>
+                <p style="background: #2a4d6e; padding: 10px; border-radius: 12px;">
+                    <strong>🌧️ Com umidade (${umidade}%) e aditivo (${reducaoAditivo}%):</strong><br>
+                    1 : ${tracoAreiaUnida.toFixed(2)} : ${tracoBrita.toFixed(2)} : ${tracoAguaCorrigida.toFixed(2)} (massa, úmido)
+                </p>
+                <div class="volume-box">
+                    <strong>📦 Traço para canteiro (lata ${volLata}L):</strong><br>
+                    ${tracoVol.tracoVolume}
+                </div>
+                <p><strong>Cimento:</strong> ${cimento.toFixed(1)} kg/m³ | a/c: ${ac.toFixed(3)} | Ar: ${(teorAr*100).toFixed(1)}%</p>
+                <p><span style="background:#ffb74d; color:#0b3b5c; padding:5px 10px; border-radius:20px;">
+                    Areia úmida: ${areiaUnida.toFixed(1)} kg | Brita: ${brita.toFixed(1)} kg | Água: ${aguaCorrigida.toFixed(1)} kg
+                </span></p>
+            `;
+            gerarGrafico('chartACI', ac, fcj, tipoCim);
+            if (document.getElementById('aci_toggle_gran').checked) {
+                renderGranulometryChart('gradingChart_aci');
+            }
+        } catch (e) { alert("Erro ACI 211: " + e.message); }
+    }
+
+    function gerarGrafico(canvasId, ac_calc, fcj_calc, tipoCimento) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        if (window[canvasId + 'chart']) window[canvasId + 'chart'].destroy();
+        const coef = abrams[tipoCimento] || abrams.CPV;
+        const pontosAC = [0.30,0.35,0.40,0.45,0.50,0.55,0.60,0.65,0.70,0.75,0.80];
+        const resistencias = pontosAC.map(ac => coef.K1 / Math.pow(coef.K2, ac));
+        window[canvasId + 'chart'] = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    { label: 'Lei de Abrams', data: pontosAC.map((x,i) => ({ x, y: resistencias[i] })), showLine: true, borderColor: '#0b3b5c', backgroundColor: 'transparent', tension: 0.2, pointRadius: 0, borderWidth: 3 },
+                    { label: 'Traço calculado', data: [{ x: ac_calc, y: fcj_calc }], backgroundColor: '#ffb74d', borderColor: '#1a2c3c', pointRadius: 10, pointStyle: 'circle', borderWidth: 2 }
+                ]
+            },
+            options: { scales: { x: { title: { display: true, text: 'a/c' } }, y: { title: { display: true, text: 'Resistência (MPa)' }, beginAtZero: true } } }
+        });
+    }
+
+    // ----------------------------------------------------------------
+    // MÓDULO DE OTIMIZAÇÃO GRANULOMÉTRICA
+    // ----------------------------------------------------------------
+    const sieves = [19, 12.5, 9.5, 6.3, 4.75, 2.36, 1.18, 0.6, 0.3, 0.15, 0.075];
+    let optimizedBlend = null;
+
+    function gerarInterfaceAgregados() {
+        const container = document.getElementById('agregados-container');
+        let html = '';
+        for (let i = 0; i < 3; i++) {
+            html += `<div class="agg-input" id="agg${i}">`;
+            html += `<h4>Agregado ${i+1}</h4>`;
+            html += `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:10px;">`;
+            html += `<div><label>Nome</label><input type="text" id="agg_name_${i}" value="${i===0?'Brita 1':i===1?'Areia Média':'Areia Fina'}" placeholder="Nome"></div>`;
+            html += `<div><label>Massa específica (kg/m³)</label><input type="number" id="agg_density_${i}" value="${i===0?2650:i===1?2620:2600}" step="1" min="2000"></div>`;
+            html += `<div><label>Massa unitária (kg/m³)</label><input type="number" id="agg_bulk_${i}" value="${i===0?1500:i===1?1550:1600}" step="1" min="1000"></div>`;
+            html += `</div>`;
+            html += `<div style="overflow-x:auto;"><table><tr><th>Peneira (mm)</th>`;
+            sieves.forEach(s => html += `<th>${s}</th>`);
+            html += `</tr><tr><td>% Passante</td>`;
+            sieves.forEach((s, idx) => {
+                let defaultValue = 0;
+                if (i === 0) {
+                    if (s >= 19) defaultValue = 100;
+                    else if (s >= 12.5) defaultValue = 70;
+                    else if (s >= 9.5) defaultValue = 30;
+                    else defaultValue = 5;
+                } else if (i === 1) {
+                    if (s >= 4.75) defaultValue = 100;
+                    else if (s >= 2.36) defaultValue = 85;
+                    else if (s >= 1.18) defaultValue = 60;
+                    else if (s >= 0.6) defaultValue = 40;
+                    else if (s >= 0.3) defaultValue = 15;
+                    else if (s >= 0.15) defaultValue = 5;
+                    else defaultValue = 2;
+                } else {
+                    if (s >= 2.36) defaultValue = 100;
+                    else if (s >= 1.18) defaultValue = 90;
+                    else if (s >= 0.6) defaultValue = 70;
+                    else if (s >= 0.3) defaultValue = 40;
+                    else if (s >= 0.15) defaultValue = 15;
+                    else defaultValue = 5;
+                }
+                html += `<td><input type="number" id="agg_${i}_sieve_${idx}" value="${defaultValue}" step="0.1" min="0" max="100" style="width:70px;"></td>`;
+            });
+            html += `</tr></table></div>`;
+            html += `</div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    document.getElementById('targetCurveType').addEventListener('change', function(e) {
+        const val = e.target.value;
+        document.getElementById('fauryDmaxGroup').style.display = val === 'faury' ? 'block' : 'none';
+        document.getElementById('fullerDmaxGroup').style.display = val === 'fuller' ? 'block' : 'none';
+        document.getElementById('fullerExpGroup').style.display = val === 'fuller' ? 'block' : 'none';
+    });
+
+    function gerarCurvaAlvo() {
+        const tipo = document.getElementById('targetCurveType').value;
+        let alvo = [];
+        if (tipo === 'faury') {
+            const D = parseFloat(document.getElementById('fauryDmax').value);
+            sieves.forEach(d => { if (d <= D) alvo.push(100 * Math.pow(d / D, 0.5)); else alvo.push(100); });
+        } else if (tipo === 'fuller') {
+            const D = parseFloat(document.getElementById('fullerDmax').value);
+            const n = parseFloat(document.getElementById('fullerExp').value);
+            sieves.forEach(d => { if (d <= D) alvo.push(100 * Math.pow(d / D, n)); else alvo.push(100); });
+        } else {
+            const D = 19;
+            sieves.forEach(d => { if (d <= D) alvo.push(100 * Math.pow(d / D, 0.45)); else alvo.push(100); });
+        }
+        return alvo;
+    }
+
+    function calcularModuloFinura(passing) {
+        const mfSiebes = [9.5, 4.75, 2.36, 1.18, 0.6, 0.3, 0.15];
+        let somaRetidos = 0;
+        mfSiebes.forEach(s => {
+            const idx = sieves.indexOf(s);
+            if (idx !== -1) { const pass = passing[idx]; somaRetidos += (100 - pass); }
+        });
+        return somaRetidos / 100;
+    }
+
+    function calcularDMC(passing) {
+        for (let i = 0; i < sieves.length; i++) if (passing[i] < 95) return sieves[i];
+        return sieves[sieves.length-1];
+    }
+
+    // Função principal de otimização
+    function otimizarMistura() {
+        const target = gerarCurvaAlvo();
+        let agregados = [];
+        for (let i = 0; i < 3; i++) {
+            let pass = [];
+            for (let j = 0; j < sieves.length; j++) pass.push(parseFloat(document.getElementById(`agg_${i}_sieve_${j}`).value) || 0);
+            agregados.push({
+                nome: document.getElementById(`agg_name_${i}`).value,
+                densidade: parseFloat(document.getElementById(`agg_density_${i}`).value) || 2600,
+                bulk: parseFloat(document.getElementById(`agg_bulk_${i}`).value) || 1500,
+                passing: pass
+            });
+        }
+        let melhorErro = Infinity, melhorProp = [1,0,0];
+        for (let a = 0; a <= 100; a+=5) {
+            for (let b = 0; b <= 100 - a; b+=5) {
+                let c = 100 - a - b; if (c < 0) continue;
+                let prop = [a/100, b/100, c/100];
+                let combined = new Array(sieves.length).fill(0);
+                for (let i = 0; i < sieves.length; i++) combined[i] = prop[0]*agregados[0].passing[i] + prop[1]*agregados[1].passing[i] + prop[2]*agregados[2].passing[i];
+                let erro = 0; for (let i = 0; i < sieves.length; i++) erro += Math.pow(combined[i] - target[i], 2);
+                if (erro < melhorErro) { melhorErro = erro; melhorProp = prop.slice(); }
+            }
+        }
+        let combinedPass = new Array(sieves.length).fill(0);
+        for (let i = 0; i < sieves.length; i++) combinedPass[i] = melhorProp[0]*agregados[0].passing[i] + melhorProp[1]*agregados[1].passing[i] + melhorProp[2]*agregados[2].passing[i];
+        const dmcOtimizado = calcularDMC(combinedPass);
+        const mfOtimizado = calcularModuloFinura(combinedPass);
+        optimizedBlend = {
+            proportions: melhorProp,
+            combinedPassing: combinedPass,
+            dmc: dmcOtimizado,
+            mf: mfOtimizado,
+            agregados: agregados,
+            target: target
+        };
+
+        // Exibe resultados
+        let html = `<h3 style="color:white;">✅ Mistura Otimizada</h3>`;
+        html += `<p><strong>Proporções:</strong> ${agregados[0].nome}: ${(melhorProp[0]*100).toFixed(1)}% | ${agregados[1].nome}: ${(melhorProp[1]*100).toFixed(1)}% | ${agregados[2].nome}: ${(melhorProp[2]*100).toFixed(1)}%</p>`;
+        html += `<p><strong>Dmáx (DMC):</strong> ${dmcOtimizado} mm | <strong>Módulo de finura:</strong> ${mfOtimizado.toFixed(2)}</p>`;
+        document.getElementById('otimizacao_result').style.display = 'block';
+        document.getElementById('otimizacao_result').innerHTML = html;
+        document.getElementById('gradingChartContainer').style.display = 'block';
+        renderGranulometryChart('gradingChart', optimizedBlend);
+        
+        let tab = `<div class="table-responsive"><table><tr><th>Peneira (mm)</th>`; sieves.forEach(s => tab += `<th>${s}</th>`);
+        tab += `</tr><tr><td>Alvo (%)</td>`; target.forEach(v => tab += `<td>${v.toFixed(1)}</td>`);
+        tab += `</tr><tr><td>Combinado (%)</td>`; combinedPass.forEach(v => tab += `<td>${v.toFixed(1)}</td>`);
+        tab += `</tr></table></div>`;
+        document.getElementById('tabelaCombinada').innerHTML = tab;
+    }
+
+    // Função genérica para renderizar o gráfico granulométrico em qualquer canvas
+    function renderGranulometryChart(canvasId, blend = null) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        if (window[canvasId + 'chart']) window[canvasId + 'chart'].destroy();
+
+        // Usa o blend otimizado se disponível, senão cria um blend padrão (dados da aba)
+        let blendData = blend || optimizedBlend;
+        if (!blendData) {
+            // Se não houver otimização, usa os dados atuais da interface da aba granulometria
+            // (para permitir visualização mesmo sem otimizar)
+            let agregados = [];
+            for (let i = 0; i < 3; i++) {
+                let pass = [];
+                for (let j = 0; j < sieves.length; j++) pass.push(parseFloat(document.getElementById(`agg_${i}_sieve_${j}`).value) || 0);
+                agregados.push({
+                    nome: document.getElementById(`agg_name_${i}`).value,
+                    passing: pass
+                });
+            }
+            const target = gerarCurvaAlvo();
+            // Proporção simples: 50-25-25 apenas para visualização
+            let prop = [0.5, 0.25, 0.25];
+            let combinedPass = new Array(sieves.length).fill(0);
+            for (let i = 0; i < sieves.length; i++) combinedPass[i] = prop[0]*agregados[0].passing[i] + prop[1]*agregados[1].passing[i] + prop[2]*agregados[2].passing[i];
+            const dmc = calcularDMC(combinedPass);
+            blendData = {
+                agregados: agregados,
+                target: target,
+                combinedPassing: combinedPass,
+                dmc: dmc
+            };
+        }
+
+        const datasets = [
+            // Agregados individuais (tracejados, finos) – ficam atrás
+            { label: `Individual: ${blendData.agregados[0].nome}`, data: blendData.agregados[0].passing, borderColor: 'rgba(107, 124, 139, 0.6)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 2, fill: false },
+            { label: `Individual: ${blendData.agregados[1].nome}`, data: blendData.agregados[1].passing, borderColor: 'rgba(46, 204, 113, 0.6)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 2, fill: false },
+            { label: `Individual: ${blendData.agregados[2].nome}`, data: blendData.agregados[2].passing, borderColor: 'rgba(231, 76, 60, 0.6)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 2, fill: false },
+            // Curva alvo e otimizada (sólidas, grossas)
+            { label: 'Curva Alvo', data: blendData.target, borderColor: '#0b3b5c', borderWidth: 4, pointRadius: 4, fill: false, tension: 0.1 },
+            { label: 'Curva Combinada (Otimizada)', data: blendData.combinedPassing, borderColor: '#ffb74d', borderWidth: 4, pointRadius: 4, fill: false, tension: 0.1 },
+            // Marcador do DMC
+            { label: `DMC = ${blendData.dmc} mm (95%)`, data: [{ x: blendData.dmc, y: 95 }], type: 'scatter', backgroundColor: 'red', pointRadius: 8, pointStyle: 'triangle', showLine: false }
+        ];
+
+        window[canvasId + 'chart'] = new Chart(ctx, {
+            type: 'line',
+            data: { datasets },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: { display: true, text: 'Análise Granulométrica Comparativa' },
+                    legend: { position: 'bottom' },
+                    tooltip: { mode: 'index' }
+                },
+                scales: {
+                    x: {
+                        type: 'log',
+                        reverse: true,
+                        title: { display: true, text: 'Abertura da Peneira (mm) – escala logarítmica' },
+                        ticks: { callback: (val) => val.toFixed(1) }
+                    },
+                    y: {
+                        title: { display: true, text: '% Passante Acumulada' },
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+
+    // Função para aplicar parâmetros otimizados aos métodos de dosagem
+    function aplicarParametrosDosagem() {
+        if (!optimizedBlend) { alert('Calcule uma mistura otimizada primeiro!'); return; }
+        document.getElementById('abcp_dmc').value = optimizedBlend.dmc;
+        document.getElementById('abcp_mf').value = optimizedBlend.mf.toFixed(2);
+        document.getElementById('ipt_dmc').value = optimizedBlend.dmc;
+        document.getElementById('aci_dmc').value = optimizedBlend.dmc;
+        document.getElementById('aci_mf').value = optimizedBlend.mf.toFixed(2);
+        alert('Parâmetros DMC e MF atualizados nos métodos ABCP e ACI. IPT/EPUSP recebeu DMC.');
+    }
+
+    // Função para controlar o toggle da granulometria nas abas de dosagem
+    function toggleGranulometryChart(method) {
+        const containerId = method + '_gran_container';
+        const checkboxId = method + '_toggle_gran';
+        const canvasId = 'gradingChart_' + method;
+        const container = document.getElementById(containerId);
+        if (document.getElementById(checkboxId).checked) {
+            container.style.display = 'block';
+            renderGranulometryChart(canvasId);
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // INICIALIZAÇÃO
+    // ----------------------------------------------------------------
+    window.onload = function() {
+        gerarInterfaceAgregados();
+        calcularABCP();
+        calcularIPT();
+        calcularACI();
+
+        const tabs = [document.getElementById('tab1'), document.getElementById('tab2'), document.getElementById('tab3'), document.getElementById('tab4')];
+        const btns = [document.getElementById('tab1btn'), document.getElementById('tab2btn'), document.getElementById('tab3btn'), document.getElementById('tab4btn')];
+        btns.forEach((btn, idx) => { btn.addEventListener('click', function(e) {
+            btns.forEach(b => b.classList.remove('active')); tabs.forEach(t => t.classList.remove('active'));
+            btn.classList.add('active'); tabs[idx].classList.add('active');
+        }); });
+
+        // Expor funções globalmente
+        window.calcularABCP = calcularABCP;
+        window.calcularIPT = calcularIPT;
+        window.calcularACI = calcularACI;
+        window.otimizarMistura = otimizarMistura;
+        window.aplicarParametrosDosagem = aplicarParametrosDosagem;
+        window.toggleGranulometryChart = toggleGranulometryChart;
+        window.renderGranulometryChart = renderGranulometryChart;
+    };
+</script>
+</body>
+</html>
